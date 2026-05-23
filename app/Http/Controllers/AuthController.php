@@ -87,7 +87,7 @@ class AuthController extends Controller
 
         RateLimiter::clear($throttleKey);
 
-        return redirect('/dashboard');
+        return redirect($this->redirectPathFor($user));
     }
 
     public function destroy(Request $request)
@@ -194,6 +194,6 @@ class AuthController extends Controller
     {
         return $user->hasRole('warga')
             ? route('citizen-portal')
-            : route('dashboard');
+            : '/';
     }
 }
