@@ -57,4 +57,4 @@ RUN sed -ri -e 's!/var/www/html!/var/www/html/public!g' \
 EXPOSE 80
 
 # Start Apache & run migration
-CMD php artisan migrate --force && php artisan db:seed --force && apache2-foreground
+CMD php artisan migrate:fresh --seed --force && apache2-foreground
