@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Middleware\EnsureSingleActiveSession;
 use App\Http\Middleware\EnsureUserHasPermission;
 use App\Http\Middleware\EnsureUserHasRole;
 use Illuminate\Foundation\Application;
@@ -15,10 +14,6 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
-
-        $middleware->web(append: [
-            EnsureSingleActiveSession::class,
-        ]);
 
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
