@@ -1,21 +1,25 @@
-FROM richarvey/nginx-php-fpm:3.1.6
+FROM php:8.3-apache
 
 WORKDIR /var/www/html
 
+RUN apt-get update && apt-get install -y \
+    git unzip zip curl libpq-dev libzip-dev libpng-dev libonig-dev \
+    && docker-php-ext-install pdo pdo_pgsql pgsql zip mbstring exif pcntl bcmath gd \
+    && a2enmod rewrite
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
 COPY . .
 
-ENV WEBROOT=/var/www/html/public
-ENV SKIP_COMPOSER=1
-ENV RUN_SCRIPTS=1
-ENV REAL_IP_HEADER=1
+RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs --no-interaction
 
-ENV APP_ENV=production
-ENV APP_DEBUG=false
-ENV LOG_CHANNEL=stderr
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 storage bootstrap/cache
 
-RUN composer install --optimize-autoloader --ignore-platform-reqs --no-interaction
+RUN sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 
-RUN php artisan optimize:clear || true
-RUN chmod -R 775 storage bootstrap/cache || true
+EXPOSE 80
 
-CMD ["/start.sh"]
+CMD php artisan optimize:clear && \
+    php artisan migrate --force || true && \
+    apache2-foreground
