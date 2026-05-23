@@ -15,6 +15,10 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VillageProfileController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/test-render', function () {
+    return 'Laravel Render Works';
+});
+
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthController::class, 'create'])->name('login');
     Route::post('login', [AuthController::class, 'store'])->name('login.store');
