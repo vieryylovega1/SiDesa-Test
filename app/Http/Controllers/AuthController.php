@@ -87,7 +87,7 @@ class AuthController extends Controller
 
         RateLimiter::clear($throttleKey);
 
-        return redirect()->route('dashboard');
+        return 'LOGIN BERHASIL';
     }
 
     public function destroy(Request $request)
