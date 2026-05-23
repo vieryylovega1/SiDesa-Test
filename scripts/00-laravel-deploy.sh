@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
 
-echo "Running composer install"
+echo "Starting Laravel deploy script..."
 
-composer install --optimize-autoloader --no-interaction
+composer install --optimize-autoloader --no-interaction --ignore-platform-reqs
 
-echo "Running migrations"
+php artisan optimize:clear || true
+php artisan config:clear || true
+php artisan cache:clear || true
+php artisan route:clear || true
+php artisan view:clear || true
 
-php artisan migrate --force
+php artisan migrate --force || true
+php artisan storage:link || true
 
-echo "Caching config"
+chmod -R 775 storage bootstrap/cache || true
 
-php artisan config:cache
-
-echo "Caching routes"
-
-php artisan route:cache
-
-echo "Caching views"
-
-php artisan view:cache
+echo "Laravel deploy script done."
