@@ -26,9 +26,11 @@ class AuthController extends Controller
             'password' => ['required'],
         ]);
 
-        $email = Str::lower($validated['email']);
+        $email = Str::lower(trim($validated['email']));
+        $password = $validated['password'];
         $throttleKey = $this->throttleKey($request, $email);
-        $user = User::where('email', $email)->first();
+
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
@@ -38,13 +40,21 @@ class AuthController extends Controller
             ]);
         }
 
-        if ($user && $user->locked_until && $user->locked_until->isFuture()) {
+        if (! $user) {
+            RateLimiter::hit($throttleKey, 300);
+
+            return back()
+                ->withErrors(['email' => 'Email tidak ditemukan.'])
+                ->onlyInput('email');
+        }
+
+        if ($user->locked_until && $user->locked_until->isFuture()) {
             throw ValidationException::withMessages([
                 'email' => 'Akun dikunci sementara sampai ' . $user->locked_until->translatedFormat('d M Y H:i') . '.',
             ]);
         }
 
-        if ($user && ! $user->is_active) {
+        if (! $user->is_active) {
             RateLimiter::hit($throttleKey, 300);
 
             return back()
@@ -52,40 +62,32 @@ class AuthController extends Controller
                 ->onlyInput('email');
         }
 
-        $credentials = [
-            'email' => $email,
-            'password' => $validated['password'],
-            'is_active' => true,
-        ];
+        if (! Hash::check($password, $user->password)) {
+            $this->registerFailedLogin($user, $throttleKey);
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
-            $request->session()->regenerate();
-            $user = $request->user();
-
-            DB::table('sessions')
-                ->where('user_id', $user->id)
-                ->where('id', '!=', $request->session()->getId())
-                ->delete();
-
-            $user->forceFill([
-                'current_session_id' => $request->session()->getId(),
-                'last_login_at' => now(),
-                'last_login_ip' => $request->ip(),
-                'login_count' => $user->login_count + 1,
-                'failed_login_attempts' => 0,
-                'locked_until' => null,
-            ])->save();
-
-            RateLimiter::clear($throttleKey);
-
-            return redirect()->intended($this->redirectPathFor($user));
+            return back()
+                ->withErrors(['email' => 'Password tidak sesuai.'])
+                ->onlyInput('email');
         }
 
-        $this->registerFailedLogin($user, $throttleKey);
+        Auth::login($user, $request->boolean('remember'));
 
-        return back()
-            ->withErrors(['email' => 'Email atau password tidak sesuai, atau akun belum aktif.'])
-            ->onlyInput('email');
+        $request->session()->regenerate();
+
+        $this->removeOtherSessions($request, $user);
+
+        $user->forceFill([
+            'current_session_id' => $request->session()->getId(),
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+            'login_count' => ((int) $user->login_count) + 1,
+            'failed_login_attempts' => 0,
+            'locked_until' => null,
+        ])->save();
+
+        RateLimiter::clear($throttleKey);
+
+        return redirect()->intended($this->redirectPathFor($user));
     }
 
     public function destroy(Request $request)
@@ -151,6 +153,22 @@ class AuthController extends Controller
             : back()->withErrors(['email' => __($status)]);
     }
 
+    private function removeOtherSessions(Request $request, User $user): void
+    {
+        if (config('session.driver') !== 'database') {
+            return;
+        }
+
+        try {
+            DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->where('id', '!=', $request->session()->getId())
+                ->delete();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     private function registerFailedLogin(?User $user, string $throttleKey): void
     {
         RateLimiter::hit($throttleKey, 300);
@@ -159,7 +177,7 @@ class AuthController extends Controller
             return;
         }
 
-        $attempts = $user->failed_login_attempts + 1;
+        $attempts = ((int) $user->failed_login_attempts) + 1;
 
         $user->forceFill([
             'failed_login_attempts' => $attempts,
