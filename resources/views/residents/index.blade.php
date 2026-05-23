@@ -107,6 +107,17 @@
             </form>
         @endif
 
+        @if (session('import_errors'))
+            <div class="alert alert-warning border-0 shadow-sm">
+                <div class="fw-bold mb-2">Sebagian data gagal diimport</div>
+                <ul class="mb-0">
+                    @foreach (array_slice(session('import_errors'), 0, 8) as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <div class="table-responsive">
             <table class="table align-middle">
                 <thead>
@@ -143,7 +154,9 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="text-center muted py-5">Belum ada data penduduk.</td>
+                        <td colspan="7">
+                            <x-empty-state icon="bi-people" title="Belum ada data penduduk" message="Tambahkan atau import data penduduk untuk mulai mengelola kependudukan." />
+                        </td>
                     </tr>
                 @endforelse
                 </tbody>

@@ -94,11 +94,23 @@ php artisan test
 
 Skenario pengujian manual tersedia di [docs/SKENARIO-DEMO.md](docs/SKENARIO-DEMO.md).
 
+## Backup Database
+
+```bash
+php artisan sidesa:backup-database
+```
+
+Panduan lengkap ada di [docs/BACKUP-DATABASE.md](docs/BACKUP-DATABASE.md).
+
 ## Dokumentasi
 
 - [Instalasi](docs/INSTALASI.md)
 - [Arsitektur](docs/ARSITEKTUR.md)
 - [Panduan Pengguna](docs/PANDUAN-PENGGUNA.md)
+- [Testing Dasar](docs/TESTING.md)
+- [Error Handling](docs/ERROR-HANDLING.md)
+- [Backup Database](docs/BACKUP-DATABASE.md)
+- [Deploy Guide](docs/DEPLOY.md)
 - [Skenario Demo Sidang](docs/SKENARIO-DEMO.md)
 - [Kesiapan Operasional](docs/KESIAPAN-OPERASIONAL.md)
 

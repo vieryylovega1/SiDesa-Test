@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'SiDesa')</title>
+    <script>
+        const sidesaInitialTheme = localStorage.getItem('sidesa-theme') === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', sidesaInitialTheme);
+        document.documentElement.setAttribute('data-bs-theme', sidesaInitialTheme);
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/2.0.8/css/dataTables.bootstrap5.css" rel="stylesheet">
@@ -20,8 +25,13 @@
             --soft: #f7faf9;
             --page: #f3f6f5;
             --panel: #ffffff;
+            --field: #ffffff;
+            --field-soft: #f9fafb;
             --sidebar: linear-gradient(180deg, #0d3f38, #176b5b);
             --shadow: 0 18px 45px rgba(17, 24, 39, .05);
+            --bs-body-bg: var(--page);
+            --bs-body-color: var(--ink);
+            --bs-border-color: var(--line);
         }
 
         [data-theme="dark"] {
@@ -33,8 +43,15 @@
             --soft: #111827;
             --page: #0b1220;
             --panel: #111827;
+            --field: #0f172a;
+            --field-soft: #182235;
             --sidebar: linear-gradient(180deg, #07111f, #0f3c35);
             --shadow: 0 18px 45px rgba(0, 0, 0, .25);
+            --bs-body-bg: var(--page);
+            --bs-body-color: var(--ink);
+            --bs-border-color: var(--line);
+            --bs-secondary-color: var(--muted);
+            color-scheme: dark;
         }
 
         body {
@@ -123,6 +140,17 @@
             color: var(--muted);
         }
 
+        .text-body,
+        .text-secondary,
+        .breadcrumb-item.active,
+        code {
+            color: var(--ink) !important;
+        }
+
+        a {
+            color: var(--primary);
+        }
+
         .btn-success {
             background: var(--primary);
             border-color: var(--primary);
@@ -153,6 +181,16 @@
             color: var(--ink);
         }
 
+        .table thead th {
+            color: var(--muted);
+            border-color: var(--line);
+        }
+
+        .table tbody td,
+        .table tbody th {
+            border-color: var(--line);
+        }
+
         .badge-soft {
             border-radius: 999px;
             padding: 7px 10px;
@@ -169,8 +207,53 @@
         .form-select {
             border-radius: 8px;
             padding: 11px 12px;
+            background-color: var(--field);
+            border-color: var(--line);
+            color: var(--ink);
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            background-color: var(--field);
+            border-color: var(--primary);
+            color: var(--ink);
+            box-shadow: 0 0 0 .2rem rgba(54, 185, 145, .18);
+        }
+
+        .input-group-text,
+        .modal-content,
+        .dropdown-menu,
+        .card,
+        .list-group-item,
+        .page-link {
             background-color: var(--panel);
             border-color: var(--line);
+            color: var(--ink);
+        }
+
+        .page-item.active .page-link {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .page-item.disabled .page-link {
+            background-color: var(--field-soft);
+            color: var(--muted);
+        }
+
+        .alert-success {
+            background: rgba(22, 163, 74, .14);
+            color: var(--ink);
+        }
+
+        .alert-danger {
+            background: rgba(220, 38, 38, .14);
+            color: var(--ink);
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, .16);
             color: var(--ink);
         }
 
@@ -179,7 +262,7 @@
         }
 
         .select2-container--bootstrap-5 .select2-selection {
-            background-color: var(--panel);
+            background-color: var(--field);
             border-color: var(--line);
             color: var(--ink);
             border-radius: 8px;
@@ -190,10 +273,50 @@
             color: var(--ink);
         }
 
+        .select2-dropdown {
+            background-color: var(--panel);
+            border-color: var(--line);
+            color: var(--ink);
+        }
+
+        .select2-container--bootstrap-5 .select2-dropdown .select2-search .select2-search__field {
+            background-color: var(--field);
+            border-color: var(--line);
+            color: var(--ink);
+        }
+
+        .select2-results__option {
+            color: var(--ink);
+        }
+
+        .select2-results__option--highlighted {
+            background-color: var(--primary) !important;
+            color: #fff !important;
+        }
+
         .dataTables_wrapper .form-control,
         .dataTables_wrapper .form-select {
             min-height: 38px;
             padding: 7px 10px;
+        }
+
+        .dt-container,
+        .dt-info,
+        .dt-length label,
+        .dt-search label {
+            color: var(--ink) !important;
+        }
+
+        .swal2-popup {
+            background: var(--panel);
+            color: var(--ink);
+            border: 1px solid var(--line);
+        }
+
+        [data-theme="dark"] .btn-light {
+            background: var(--field);
+            border-color: var(--line);
+            color: var(--ink);
         }
 
         .global-search {
@@ -268,6 +391,9 @@
 
         <nav class="nav flex-column gap-1">
             <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}"><i class="bi bi-grid-1x2"></i> <span class="sidebar-label">Dashboard</span></a>
+            @if (auth()->user()?->hasRole('warga'))
+                <a class="nav-link {{ request()->routeIs('citizen-portal') ? 'active' : '' }}" href="{{ route('citizen-portal') }}"><i class="bi bi-person-heart"></i> <span class="sidebar-label">Portal Warga</span></a>
+            @endif
             @if (auth()->user()?->canAccess('penduduk.view'))
                 <a class="nav-link {{ request()->routeIs('residents.*') ? 'active' : '' }}" href="{{ route('residents.index') }}"><i class="bi bi-people"></i> <span class="sidebar-label">Penduduk</span></a>
             @endif
@@ -286,10 +412,18 @@
             @if (auth()->user()?->canAccess('complaints.view'))
                 <a class="nav-link {{ request()->routeIs('complaints.*') ? 'active' : '' }}" href="{{ route('complaints.index') }}"><i class="bi bi-chat-square-text"></i> <span class="sidebar-label">Pengaduan</span></a>
             @endif
-            <a class="nav-link" href="#"><i class="bi bi-calendar-event"></i> <span class="sidebar-label">Agenda</span></a>
-            <a class="nav-link" href="#"><i class="bi bi-clipboard-data"></i> <span class="sidebar-label">Laporan</span></a>
+            <a class="nav-link {{ request()->routeIs('agenda.*') ? 'active' : '' }}" href="{{ route('agenda.index') }}"><i class="bi bi-calendar-event"></i> <span class="sidebar-label">Agenda</span></a>
+            @if (auth()->user()?->canAccess('reports.view'))
+                <a class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}" href="{{ route('reports.index') }}"><i class="bi bi-clipboard-data"></i> <span class="sidebar-label">Laporan</span></a>
+            @endif
             @if (auth()->user()?->canAccess('users.manage'))
                 <a class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}" href="{{ route('users.index') }}"><i class="bi bi-shield-lock"></i> <span class="sidebar-label">User & Akses</span></a>
+            @endif
+            @if (auth()->user()?->canAccess('audit.view'))
+                <a class="nav-link {{ request()->routeIs('audit-logs.*') ? 'active' : '' }}" href="{{ route('audit-logs.index') }}"><i class="bi bi-activity"></i> <span class="sidebar-label">Audit Log</span></a>
+            @endif
+            @if (auth()->user()?->canAccess('settings.manage'))
+                <a class="nav-link {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.village-profile.edit') }}"><i class="bi bi-gear"></i> <span class="sidebar-label">Pengaturan</span></a>
             @endif
         </nav>
 
@@ -392,8 +526,6 @@
 <script src="https://cdn.datatables.net/responsive/3.0.2/js/responsive.bootstrap5.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-    const savedTheme = localStorage.getItem('sidesa-theme');
-    if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     if (localStorage.getItem('sidesa-sidebar') === 'collapsed') document.body.classList.add('sidebar-collapsed');
 
     document.getElementById('sidebarToggle')?.addEventListener('click', () => {
@@ -408,7 +540,9 @@
     document.getElementById('themeToggle')?.addEventListener('click', () => {
         const nextTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', nextTheme);
+        document.documentElement.setAttribute('data-bs-theme', nextTheme);
         localStorage.setItem('sidesa-theme', nextTheme);
+        window.dispatchEvent(new CustomEvent('sidesa:theme-changed', { detail: { theme: nextTheme } }));
     });
 
     document.querySelectorAll('.toast').forEach((toast) => new bootstrap.Toast(toast).show());

@@ -60,7 +60,7 @@
             border-radius: 8px;
             display: grid;
             place-items: center;
-            background: #e8f4f1;
+            background: rgba(54, 185, 145, .14);
             color: var(--primary);
             font-size: 1.25rem;
         }
@@ -108,6 +108,16 @@
             padding: 10px 8px;
             font-weight: 800;
         }
+
+        .agenda-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+
+        .agenda-dot.good { background: #16a34a; }
+        .agenda-dot.warning { background: #f59e0b; }
     </style>
 @endpush
 
@@ -238,13 +248,20 @@
             </div>
 
             <div class="panel">
-                <h5 class="fw-bold mb-1">Agenda Desa</h5>
-                <div class="small muted mb-3">Kegiatan terdekat bulan ini.</div>
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                    <h5 class="fw-bold mb-0">Agenda Desa</h5>
+                    <a href="{{ route('agenda.index') }}" class="btn btn-sm btn-outline-success">Detail</a>
+                </div>
+                <div class="small muted mb-3">Perbandingan kabar baik dan hal yang perlu perhatian.</div>
                 <div class="d-grid gap-3">
                     @foreach ($agendas as $agenda)
                         <div class="d-flex gap-3">
                             <div class="agenda-date">{{ $agenda['tanggal'] }}</div>
                             <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="agenda-dot {{ $agenda['kategori'] === 'baik' ? 'good' : 'warning' }}"></span>
+                                    <span class="small fw-bold {{ $agenda['kategori'] === 'baik' ? 'text-success' : 'text-warning' }}">{{ $agenda['label'] }}</span>
+                                </div>
                                 <div class="fw-bold">{{ $agenda['judul'] }}</div>
                                 <div class="small muted"><i class="bi bi-geo-alt me-1"></i>{{ $agenda['lokasi'] }}</div>
                             </div>
@@ -261,11 +278,14 @@
     <script>
         const initialStatistics = @json($statistics);
         const palette = ['#176b5b', '#f2b84b', '#2f80ed', '#9b51e0', '#eb5757', '#27ae60', '#f2994a', '#4f4f4f'];
+        const themeColor = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        const chartTextColor = () => themeColor('--ink') || '#1f2937';
+        const chartGridColor = () => themeColor('--line') || '#e5e7eb';
 
         const chartOptions = {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } }
+            plugins: { legend: { position: 'bottom', labels: { color: chartTextColor(), usePointStyle: true, boxWidth: 8 } } }
         };
 
         const labels = (items) => items.map((item) => item.label);
@@ -286,7 +306,13 @@
                     pointRadius: 4
                 }]
             },
-            options: { ...chartOptions, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+            options: {
+                ...chartOptions,
+                scales: {
+                    x: { ticks: { color: chartTextColor() }, grid: { color: chartGridColor() } },
+                    y: { beginAtZero: true, ticks: { precision: 0, color: chartTextColor() }, grid: { color: chartGridColor() } }
+                }
+            }
         });
 
         const genderChart = new Chart(document.getElementById('genderChart'), {
@@ -298,14 +324,42 @@
         const occupationChart = new Chart(document.getElementById('occupationChart'), {
             type: 'bar',
             data: { labels: labels(initialStatistics.occupation), datasets: [{ label: 'Penduduk', data: totals(initialStatistics.occupation), backgroundColor: palette }] },
-            options: { ...chartOptions, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+            options: {
+                ...chartOptions,
+                scales: {
+                    x: { ticks: { color: chartTextColor() }, grid: { color: chartGridColor() } },
+                    y: { beginAtZero: true, ticks: { precision: 0, color: chartTextColor() }, grid: { color: chartGridColor() } }
+                }
+            }
         });
 
         const educationChart = new Chart(document.getElementById('educationChart'), {
             type: 'bar',
             data: { labels: labels(initialStatistics.education), datasets: [{ label: 'Penduduk', data: totals(initialStatistics.education), backgroundColor: palette.slice().reverse() }] },
-            options: { ...chartOptions, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+            options: {
+                ...chartOptions,
+                indexAxis: 'y',
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0, color: chartTextColor() }, grid: { color: chartGridColor() } },
+                    y: { ticks: { color: chartTextColor() }, grid: { color: chartGridColor() } }
+                }
+            }
         });
+
+        function refreshChartTheme() {
+            [residentTrendChart, genderChart, occupationChart, educationChart].forEach((chart) => {
+                chart.options.plugins.legend.labels.color = chartTextColor();
+                if (chart.options.scales) {
+                    Object.values(chart.options.scales).forEach((scale) => {
+                        scale.ticks = { ...(scale.ticks || {}), color: chartTextColor() };
+                        scale.grid = { ...(scale.grid || {}), color: chartGridColor() };
+                    });
+                }
+                chart.update();
+            });
+        }
+
+        window.addEventListener('sidesa:theme-changed', refreshChartTheme);
 
         function updateChart(chart, items) {
             chart.data.labels = labels(items);

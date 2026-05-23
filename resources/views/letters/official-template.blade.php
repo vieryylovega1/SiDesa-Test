@@ -27,16 +27,16 @@
     @endif
 
     <div class="kop">
-        <h3>PEMERINTAH KABUPATEN SENTOSA</h3>
-        <h3>KECAMATAN HARMONI</h3>
-        <h2>DESA SUKAMAJU</h2>
-        <div>Jl. Raya Desa Sukamaju No. 01, Kode Pos 55555</div>
+        <h3>PEMERINTAH KABUPATEN {{ strtoupper($profile->regency) }}</h3>
+        <h3>KECAMATAN {{ strtoupper($profile->district) }}</h3>
+        <h2>DESA {{ strtoupper($profile->village_name) }}</h2>
+        <div>{{ $profile->address ?: '-' }}{{ $profile->postal_code ? ', Kode Pos ' . $profile->postal_code : '' }}</div>
     </div>
 
     <div class="title">{{ strtoupper($letter->letter_type) }}</div>
     <div class="number">Nomor: {{ $letter->letter_number }}</div>
 
-    <p>Yang bertanda tangan di bawah ini, Kepala Desa Sukamaju, Kecamatan Harmoni, Kabupaten Sentosa, menerangkan bahwa:</p>
+    <p>Yang bertanda tangan di bawah ini, Kepala Desa {{ $profile->village_name }}, Kecamatan {{ $profile->district }}, Kabupaten {{ $profile->regency }}, menerangkan bahwa:</p>
 
     <table>
         <tr><td class="label">Nama</td><td>: {{ $letter->applicant_name }}</td></tr>
@@ -58,10 +58,13 @@
             <div class="hash">Hash: {{ $letter->digital_signature }}</div>
         </div>
         <div class="sign">
-            <div>Sukamaju, {{ $letter->signed_at?->translatedFormat('d F Y') ?? now()->translatedFormat('d F Y') }}</div>
-            <div>Kepala Desa Sukamaju</div>
+            <div>{{ $profile->village_name }}, {{ $letter->signed_at?->translatedFormat('d F Y') ?? now()->translatedFormat('d F Y') }}</div>
+            <div>Kepala Desa {{ $profile->village_name }}</div>
             <br><br><br>
-            <strong>H. Suryanto</strong>
+            <strong>{{ $profile->head_name }}</strong>
+            @if ($profile->head_nip)
+                <div>NIP. {{ $profile->head_nip }}</div>
+            @endif
             <div style="font-size:11px;">Ditandatangani digital oleh: {{ $letter->signer?->name ?? 'SiDesa' }}</div>
         </div>
     </div>

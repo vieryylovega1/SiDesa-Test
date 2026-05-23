@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\LetterRequest;
 use App\Models\Resident;
+use App\Models\VillageProfile;
+use App\Services\AuditLogger;
 use Barryvdh\DomPDF\Facade\Pdf;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
@@ -65,7 +67,7 @@ class LetterRequestController extends Controller
             'letter_code' => ['required', 'in:' . implode(',', array_keys(self::LETTER_TYPES))],
             'purpose' => ['required', 'string', 'max:1000'],
             'phone' => ['nullable', 'string', 'max:20'],
-            'status' => ['required', 'string', 'max:50'],
+            'status' => ['required', 'in:Diajukan,Verifikasi,Diproses'],
             'requested_at' => ['required', 'date'],
         ]);
 
@@ -76,21 +78,68 @@ class LetterRequestController extends Controller
         $type = self::LETTER_TYPES[$data['letter_code']];
         $data['letter_type'] = $type['name'];
         $data['applicant_name'] = $resident?->name ?: $data['applicant_name'];
-        $data['letter_number'] = $this->generateLetterNumber($data['letter_code']);
-        $data['verification_code'] = strtoupper(Str::random(10));
         $data['template_data'] = $this->buildTemplateData($resident, $data);
-        $data['signed_by'] = auth()->id();
-        $data['signed_at'] = now();
-        $data['digital_signature'] = $this->digitalSignature($data);
 
-        LetterRequest::create($data);
+        $letter = LetterRequest::create($data);
+        AuditLogger::log('created', 'Membuat permohonan surat ' . $letter->letter_type . ' untuk ' . $letter->applicant_name, $letter, null, $letter->toArray());
 
         return redirect()->route('letters.index')->with('success', 'Permohonan surat berhasil ditambahkan.');
     }
 
     public function show(LetterRequest $layanan_surat)
     {
-        return view('letters.show', ['letter' => $layanan_surat->load(['resident', 'signer'])]);
+        return view('letters.show', ['letter' => $layanan_surat->load(['resident', 'signer', 'approver'])]);
+    }
+
+    public function approve(LetterRequest $letter)
+    {
+        $letterCode = $letter->letter_code ?: $this->inferLetterCode($letter->letter_type);
+        $data = [
+            'letter_code' => $letterCode,
+            'letter_number' => $letter->letter_number ?: $this->generateLetterNumber($letterCode),
+            'verification_code' => $letter->verification_code ?: strtoupper(Str::random(10)),
+            'applicant_name' => $letter->applicant_name,
+            'requested_at' => $letter->requested_at?->format('Y-m-d') ?: now()->format('Y-m-d'),
+        ];
+
+        $oldValues = $letter->toArray();
+
+        $letter->forceFill([
+            'status' => 'Selesai',
+            'letter_code' => $data['letter_code'],
+            'letter_number' => $data['letter_number'],
+            'verification_code' => $data['verification_code'],
+            'signed_by' => auth()->id(),
+            'signed_at' => now(),
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+            'rejection_reason' => null,
+            'digital_signature' => $this->digitalSignature($data),
+        ])->save();
+
+        AuditLogger::log('approved', 'Menyetujui surat ' . $letter->letter_number, $letter, $oldValues, $letter->fresh()->toArray());
+
+        return back()->with('success', 'Surat berhasil disetujui dan siap dicetak.');
+    }
+
+    public function reject(Request $request, LetterRequest $letter)
+    {
+        $data = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $oldValues = $letter->toArray();
+
+        $letter->update([
+            'status' => 'Ditolak',
+            'rejection_reason' => $data['rejection_reason'],
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+        ]);
+
+        AuditLogger::log('rejected', 'Menolak surat untuk ' . $letter->applicant_name, $letter, $oldValues, $letter->fresh()->toArray());
+
+        return back()->with('success', 'Surat berhasil ditolak dengan alasan yang dicatat.');
     }
 
     public function print(LetterRequest $letter)
@@ -160,13 +209,19 @@ class LetterRequestController extends Controller
 
     private function letterViewData(LetterRequest $letter): array
     {
-        $letter->load(['resident.familyCard', 'signer']);
+        $letter->load(['resident.familyCard', 'signer', 'approver']);
+
+        if ($letter->status !== 'Selesai') {
+            abort(403, 'Surat belum disetujui sehingga belum bisa dicetak.');
+        }
+
         $this->ensureDigitalFields($letter);
         $verificationUrl = route('letters.verify', $letter->verification_code);
 
         return [
             'letter' => $letter,
             'resident' => $letter->resident,
+            'profile' => VillageProfile::current(),
             'qrCode' => $this->qrCode($verificationUrl),
             'verificationUrl' => $verificationUrl,
             'body' => $this->letterBody($letter),
@@ -225,11 +280,11 @@ class LetterRequestController extends Controller
         $purpose = $letter->purpose;
 
         return match ($letter->letter_code) {
-            'usaha' => "Nama tersebut benar merupakan warga Desa Sukamaju dan berdasarkan keterangan yang bersangkutan memiliki kegiatan usaha. Surat ini dibuat untuk {$purpose}.",
-            'kematian' => "Berdasarkan data dan keterangan yang ada, nama tersebut tercatat dalam administrasi Desa Sukamaju untuk keperluan administrasi kematian. Surat ini dibuat untuk {$purpose}.",
-            'pindah' => "Nama tersebut benar merupakan warga Desa Sukamaju dan mengajukan keterangan pindah domisili. Surat ini dibuat untuk {$purpose}.",
-            'tidak_mampu' => "Nama tersebut benar merupakan warga Desa Sukamaju dan berdasarkan keterangan lingkungan termasuk keluarga yang membutuhkan dukungan administrasi. Surat ini dibuat untuk {$purpose}.",
-            default => "Nama tersebut benar berdomisili di Desa Sukamaju, Kecamatan Harmoni, Kabupaten Sentosa. Surat ini dibuat untuk {$purpose}.",
+            'usaha' => "Nama tersebut benar merupakan warga desa dan berdasarkan keterangan yang bersangkutan memiliki kegiatan usaha. Surat ini dibuat untuk {$purpose}.",
+            'kematian' => "Berdasarkan data dan keterangan yang ada, nama tersebut tercatat dalam administrasi desa untuk keperluan administrasi kematian. Surat ini dibuat untuk {$purpose}.",
+            'pindah' => "Nama tersebut benar merupakan warga desa dan mengajukan keterangan pindah domisili. Surat ini dibuat untuk {$purpose}.",
+            'tidak_mampu' => "Nama tersebut benar merupakan warga desa dan berdasarkan keterangan lingkungan termasuk keluarga yang membutuhkan dukungan administrasi. Surat ini dibuat untuk {$purpose}.",
+            default => "Nama tersebut benar berdomisili sesuai data administrasi desa. Surat ini dibuat untuk {$purpose}.",
         };
     }
 }

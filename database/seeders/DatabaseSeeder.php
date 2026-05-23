@@ -12,6 +12,7 @@ use App\Models\Resident;
 use App\Models\SocialAssistanceCategory;
 use App\Models\SocialAssistanceRecipient;
 use App\Models\User;
+use App\Models\VillageProfile;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -36,6 +37,23 @@ class DatabaseSeeder extends Seeder
 
             return [$user['email'] => $record];
         });
+
+        VillageProfile::updateOrCreate(
+            ['id' => 1],
+            [
+                'village_name' => 'Sukamaju',
+                'district' => 'Harmoni',
+                'regency' => 'Sentosa',
+                'province' => 'Jawa Tengah',
+                'postal_code' => '55555',
+                'address' => 'Jl. Raya Desa Sukamaju No. 01',
+                'phone' => '0274-555-123',
+                'email' => 'pemdes@sukamaju.test',
+                'website' => 'https://sukamaju.test',
+                'head_name' => 'H. Suryanto',
+                'head_nip' => '196805101990031002',
+            ]
+        );
 
         $residentRows = [
             ['3301011605900001', '3301010101200001', 'Kepala Keluarga', 'Siti Aminah', 'Perempuan', 'Sukamaju', '1990-05-16', 'Wiraswasta', 'SMA/SMK', 'Kawin', 'Jl. Melati', '001', '002', 'Krajan'],
@@ -62,6 +80,9 @@ class DatabaseSeeder extends Seeder
             ['3301012304920022', '3301010101200009', 'Kepala Keluarga', 'Agus Setiawan', 'Laki-laki', 'Sukamaju', '1992-04-23', 'Ojek Online', 'SMA/SMK', 'Kawin', 'Jl. Dahlia', '003', '004', 'Krajan'],
             ['3301011208940023', '3301010101200009', 'Istri', 'Fitriani', 'Perempuan', 'Sukamaju', '1994-08-12', 'Ibu Rumah Tangga', 'SMA/SMK', 'Kawin', 'Jl. Dahlia', '003', '004', 'Krajan'],
             ['3301010101210024', '3301010101200009', 'Anak', 'Kirana Aulia', 'Perempuan', 'Sukamaju', '2021-01-01', 'Belum Bekerja', 'Tidak Sekolah', 'Belum Kawin', 'Jl. Dahlia', '003', '004', 'Krajan'],
+            ['3301010808450025', '3301010101200010', 'Kepala Keluarga', 'Mbah Karto', 'Laki-laki', 'Sukamaju', '1945-08-08', 'Pensiunan', 'SD', 'Kawin', 'Jl. Seruni', '004', '004', 'Tegalrejo'],
+            ['3301011709500026', '3301010101200010', 'Istri', 'Mbah Sari', 'Perempuan', 'Sukamaju', '1950-09-17', 'Ibu Rumah Tangga', 'SD', 'Kawin', 'Jl. Seruni', '004', '004', 'Tegalrejo'],
+            ['3301011111990027', '3301010101200011', 'Kepala Keluarga', 'Rizal Maulana', 'Laki-laki', 'Sukamaju', '1999-11-11', 'Karyawan', 'SMA/SMK', 'Belum Kawin', 'Jl. Merdeka', '005', '004', 'Sumberrejo'],
         ];
 
         $residents = collect($residentRows)->mapWithKeys(function (array $row) {
@@ -84,7 +105,11 @@ class DatabaseSeeder extends Seeder
                     'rt' => $rt,
                     'rw' => $rw,
                     'hamlet' => $hamlet,
-                    'status' => 'Aktif',
+                    'status' => match ($nik) {
+                        '3301010808450025' => 'Meninggal',
+                        '3301011111990027' => 'Pindah',
+                        default => 'Aktif',
+                    },
                 ]
             );
 
@@ -140,6 +165,8 @@ class DatabaseSeeder extends Seeder
                     'digital_signature' => $verificationCode ? hash('sha256', $letterNumber . $verificationCode) : null,
                     'signed_by' => $verificationCode ? $users['kepala@sidesa.test']->id : null,
                     'signed_at' => $verificationCode ? now()->subDays(10 - $index) : null,
+                    'approved_by' => $verificationCode ? $users['kepala@sidesa.test']->id : null,
+                    'approved_at' => $verificationCode ? now()->subDays(10 - $index) : null,
                     'requested_at' => $date,
                 ]
             );

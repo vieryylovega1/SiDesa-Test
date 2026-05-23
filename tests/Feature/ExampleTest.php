@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\AuditLog;
 use App\Models\Complaint;
 use App\Models\FamilyCard;
 use App\Models\LetterRequest;
@@ -12,6 +13,7 @@ use App\Models\Resident;
 use App\Models\SocialAssistanceCategory;
 use App\Models\SocialAssistanceRecipient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -40,6 +42,77 @@ class ExampleTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_login_records_session_and_rejects_inactive_user(): void
+    {
+        $active = User::factory()->create([
+            'email' => 'secure@sidesa.test',
+            'password' => Hash::make('password'),
+            'role' => 'operator',
+            'is_active' => true,
+        ]);
+
+        $inactive = User::factory()->create([
+            'email' => 'inactive@sidesa.test',
+            'password' => Hash::make('password'),
+            'role' => 'operator',
+            'is_active' => false,
+        ]);
+
+        $this->post('/login', [
+            'email' => $inactive->email,
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+
+        $this->post('/login', [
+            'email' => $active->email,
+            'password' => 'password',
+        ])->assertRedirect('/');
+
+        $active->refresh();
+
+        $this->assertNotNull($active->current_session_id);
+        $this->assertNotNull($active->last_login_at);
+        $this->assertSame(1, $active->login_count);
+        $this->assertSame(0, $active->failed_login_attempts);
+    }
+
+    public function test_failed_login_locks_user_temporarily_after_repeated_attempts(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'locked@sidesa.test',
+            'password' => Hash::make('password'),
+            'role' => 'operator',
+            'is_active' => true,
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login', [
+                'email' => $user->email,
+                'password' => 'password-salah',
+            ])->assertSessionHasErrors('email');
+        }
+
+        $user->refresh();
+
+        $this->assertSame(5, $user->failed_login_attempts);
+        $this->assertNotNull($user->locked_until);
+        $this->assertTrue($user->locked_until->isFuture());
+    }
+
+    public function test_old_session_is_rejected_when_account_logs_in_elsewhere(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'operator',
+            'is_active' => true,
+            'current_session_id' => 'newer-session-id',
+        ]);
+
+        $this->actingAs($user)
+            ->get('/')
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors('email');
+    }
+
     public function test_authenticated_user_can_read_dashboard_statistics(): void
     {
         $user = User::factory()->create([
@@ -59,6 +132,23 @@ class ExampleTest extends TestCase
                 'education',
                 'monthly',
             ]);
+    }
+
+    public function test_authenticated_user_can_open_agenda_with_good_and_attention_content(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'operator',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/agenda')
+            ->assertStatus(200)
+            ->assertSee('Agenda Desa')
+            ->assertSee('Kabar Baik')
+            ->assertSee('Perlu Perhatian')
+            ->assertSee('Posyandu Balita dan Lansia Terpadu')
+            ->assertSee('Verifikasi Ulang Penerima Bantuan Sosial');
     }
 
     public function test_operator_can_filter_and_export_residents(): void
@@ -166,11 +256,17 @@ class ExampleTest extends TestCase
             'letter_code' => 'domisili',
             'purpose' => 'keperluan administrasi',
             'phone' => '081234567890',
-            'status' => 'Selesai',
+            'status' => 'Diajukan',
             'requested_at' => now()->format('Y-m-d'),
         ])->assertRedirect('/layanan-surat');
 
         $letter = LetterRequest::where('resident_id', $resident->id)->firstOrFail();
+
+        $this->actingAs($user)
+            ->patch('/layanan-surat/' . $letter->id . '/setujui')
+            ->assertRedirect();
+
+        $letter->refresh();
 
         $this->actingAs($user)
             ->get('/layanan-surat/' . $letter->id . '/pdf')
@@ -434,5 +530,130 @@ class ExampleTest extends TestCase
             'admin_reply' => 'Laporan sudah diterima dan akan ditindaklanjuti petugas.',
             'replied_by' => $admin->id,
         ]);
+    }
+
+    public function test_custom_404_page_is_available(): void
+    {
+        $this->get('/halaman-yang-tidak-ada')
+            ->assertStatus(404)
+            ->assertSee('Halaman tidak ditemukan');
+    }
+
+    public function test_global_search_returns_relevant_results(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'admin_desa',
+            'is_active' => true,
+        ]);
+
+        Resident::create([
+            'nik' => '3301010101010099',
+            'kk' => '3301010101011199',
+            'family_relationship' => 'Kepala Keluarga',
+            'name' => 'Budi Pencarian',
+            'gender' => 'Laki-laki',
+            'birth_place' => 'Sukamaju',
+            'birth_date' => '1988-01-01',
+            'religion' => 'Islam',
+            'occupation' => 'Petani',
+            'education' => 'SMA/SMK',
+            'marital_status' => 'Kawin',
+            'address' => 'Jl. Search',
+            'rt' => '001',
+            'rw' => '001',
+            'status' => 'Aktif',
+        ]);
+
+        $this->actingAs($user)
+            ->get('/pencarian?q=Budi')
+            ->assertStatus(200)
+            ->assertSee('Budi Pencarian');
+    }
+
+    public function test_kepala_desa_can_view_and_export_reports(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'kepala_desa',
+            'is_active' => true,
+        ]);
+
+        Resident::create([
+            'nik' => '3301010101010123',
+            'kk' => '3301010101011123',
+            'family_relationship' => 'Kepala Keluarga',
+            'name' => 'Warga Laporan',
+            'gender' => 'Perempuan',
+            'birth_place' => 'Sukamaju',
+            'birth_date' => now()->subYears(20)->format('Y-m-d'),
+            'religion' => 'Islam',
+            'occupation' => 'Guru',
+            'education' => 'S1',
+            'marital_status' => 'Belum Kawin',
+            'address' => 'Jl. Laporan',
+            'rt' => '009',
+            'rw' => '008',
+            'status' => 'Aktif',
+        ]);
+
+        $this->actingAs($user)
+            ->get('/laporan?type=penduduk-rt-rw')
+            ->assertStatus(200)
+            ->assertSee('Laporan Penduduk per RT/RW');
+
+        $this->actingAs($user)
+            ->get('/laporan/export/excel?type=penduduk-rt-rw')
+            ->assertStatus(200)
+            ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+    }
+
+    public function test_admin_can_update_village_profile_and_audit_log_is_created(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin_desa',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->put('/pengaturan/profil-desa', [
+            'village_name' => 'Sukamaju Baru',
+            'district' => 'Harmoni',
+            'regency' => 'Sentosa',
+            'province' => 'Jawa Tengah',
+            'postal_code' => '55555',
+            'address' => 'Jl. Raya Desa No. 1',
+            'phone' => '0274000000',
+            'email' => 'desa@example.com',
+            'website' => 'https://desa.example.com',
+            'head_name' => 'Kepala Desa Uji',
+            'head_nip' => '196805101990031002',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('village_profiles', [
+            'village_name' => 'Sukamaju Baru',
+            'head_name' => 'Kepala Desa Uji',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'updated',
+            'description' => 'Memperbarui profil desa',
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/audit-log')
+            ->assertStatus(200)
+            ->assertSee('Memperbarui profil desa');
+    }
+
+    public function test_warga_can_open_citizen_portal(): void
+    {
+        $warga = User::factory()->create([
+            'role' => 'warga',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($warga)
+            ->get('/portal-warga')
+            ->assertStatus(200)
+            ->assertSee('Portal Warga')
+            ->assertSee('Kirim Pengaduan');
     }
 }

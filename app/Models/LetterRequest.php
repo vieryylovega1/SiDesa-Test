@@ -23,6 +23,9 @@ class LetterRequest extends Model
         'digital_signature',
         'signed_by',
         'signed_at',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
         'template_data',
         'requested_at',
     ];
@@ -32,6 +35,7 @@ class LetterRequest extends Model
         return [
             'requested_at' => 'date',
             'signed_at' => 'datetime',
+            'approved_at' => 'datetime',
             'template_data' => 'array',
         ];
     }
@@ -44,5 +48,10 @@ class LetterRequest extends Model
     public function signer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'signed_by');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

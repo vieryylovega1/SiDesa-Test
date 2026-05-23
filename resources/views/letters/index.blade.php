@@ -73,7 +73,9 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="text-center muted py-5">Belum ada permohonan surat.</td>
+                        <td colspan="6">
+                            <x-empty-state icon="bi-file-earmark-text" title="Belum ada permohonan surat" message="Permohonan surat warga akan muncul di sini." />
+                        </td>
                     </tr>
                 @endforelse
                 </tbody>

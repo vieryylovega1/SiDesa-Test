@@ -2,14 +2,17 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ComplaintController;
 use App\Http\Controllers\FamilyCardController;
 use App\Http\Controllers\LetterRequestController;
 use App\Http\Controllers\NewsCategoryController;
 use App\Http\Controllers\NewsPostController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ResidentController;
 use App\Http\Controllers\SocialAssistanceController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VillageProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -31,7 +34,15 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/', DashboardController::class)->middleware('permission:dashboard.view')->name('dashboard');
     Route::get('dashboard/statistik', [DashboardController::class, 'data'])->middleware('permission:dashboard.view')->name('dashboard.statistics');
+    Route::get('agenda', [DashboardController::class, 'agenda'])->middleware('permission:dashboard.view')->name('agenda.index');
     Route::get('pencarian', [DashboardController::class, 'search'])->middleware('permission:dashboard.view')->name('global-search');
+    Route::get('portal-warga', [DashboardController::class, 'citizenPortal'])->middleware('permission:complaints.create')->name('citizen-portal');
+
+    Route::middleware('permission:reports.view')->group(function () {
+        Route::get('laporan', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('laporan/export/pdf', [ReportController::class, 'exportPdf'])->name('reports.export.pdf');
+        Route::get('laporan/export/excel', [ReportController::class, 'exportExcel'])->name('reports.export.excel');
+    });
 
     Route::get('penduduk', [ResidentController::class, 'index'])->middleware('permission:penduduk.view')->name('residents.index');
     Route::get('penduduk/export/excel', [ResidentController::class, 'exportExcel'])->middleware('permission:penduduk.view')->name('residents.export.excel');
@@ -64,6 +75,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:surat.manage')->group(function () {
         Route::get('layanan-surat/create', [LetterRequestController::class, 'create'])->name('letters.create');
         Route::post('layanan-surat', [LetterRequestController::class, 'store'])->name('letters.store');
+        Route::patch('layanan-surat/{letter}/setujui', [LetterRequestController::class, 'approve'])->name('letters.approve');
+        Route::patch('layanan-surat/{letter}/tolak', [LetterRequestController::class, 'reject'])->name('letters.reject');
     });
     Route::get('layanan-surat/{layanan_surat}', [LetterRequestController::class, 'show'])->middleware('permission:surat.view')->name('letters.show');
 
@@ -97,4 +110,13 @@ Route::middleware('auth')->group(function () {
     Route::resource('users', UserController::class)
         ->except(['show'])
         ->middleware('permission:users.manage');
+
+    Route::middleware('permission:settings.manage')->group(function () {
+        Route::get('pengaturan/profil-desa', [VillageProfileController::class, 'edit'])->name('settings.village-profile.edit');
+        Route::put('pengaturan/profil-desa', [VillageProfileController::class, 'update'])->name('settings.village-profile.update');
+    });
+
+    Route::get('audit-log', [AuditLogController::class, 'index'])
+        ->middleware('permission:audit.view')
+        ->name('audit-logs.index');
 });

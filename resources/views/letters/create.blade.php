@@ -47,8 +47,8 @@
             <div class="col-md-3">
                 <label class="form-label fw-semibold">Status</label>
                 <select name="status" class="form-select @error('status') is-invalid @enderror" required>
-                    @foreach (['Diajukan', 'Verifikasi', 'Diproses', 'Selesai', 'Ditolak'] as $status)
-                        <option @selected(old('status', 'Selesai') === $status)>{{ $status }}</option>
+                    @foreach (['Diajukan', 'Verifikasi', 'Diproses'] as $status)
+                        <option @selected(old('status', 'Diajukan') === $status)>{{ $status }}</option>
                     @endforeach
                 </select>
                 @error('status') <div class="invalid-feedback">{{ $message }}</div> @enderror

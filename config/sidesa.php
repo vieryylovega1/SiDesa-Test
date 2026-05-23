@@ -30,6 +30,8 @@ return [
             'complaints.manage',
             'users.manage',
             'reports.view',
+            'settings.manage',
+            'audit.view',
         ],
         'operator' => [
             'dashboard.view',

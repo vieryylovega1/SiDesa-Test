@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\FamilyCard;
 use App\Models\Resident;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ResidentController extends Controller
@@ -243,32 +245,57 @@ class ResidentController extends Controller
         $handle = fopen($request->file('file')->getRealPath(), 'r');
         $header = fgetcsv($handle);
         $imported = 0;
+        $errors = [];
+        $rowNumber = 1;
 
         while (($row = fgetcsv($handle)) !== false) {
+            $rowNumber++;
             $data = array_combine($header, $row);
 
             if (! $data || empty($data['NIK'])) {
                 continue;
             }
 
+            $payload = [
+                'nik' => preg_replace('/\D/', '', $data['NIK']),
+                'kk' => preg_replace('/\D/', '', $data['No KK'] ?? ''),
+                'family_relationship' => $data['Hubungan Keluarga'] ?? 'Anggota Keluarga',
+                'name' => $data['Nama'] ?? '',
+                'gender' => $data['Jenis Kelamin'] ?? 'Laki-laki',
+                'birth_place' => $data['Tempat Lahir'] ?? '',
+                'birth_date' => $data['Tanggal Lahir'] ?? now()->format('Y-m-d'),
+                'address' => $data['Alamat'] ?? '',
+                'rt' => str_pad((string) ($data['RT'] ?? '000'), 3, '0', STR_PAD_LEFT),
+                'rw' => str_pad((string) ($data['RW'] ?? '000'), 3, '0', STR_PAD_LEFT),
+                'religion' => $data['Agama'] ?? 'Islam',
+                'marital_status' => $data['Status Nikah'] ?? 'Belum Kawin',
+                'occupation' => $data['Pekerjaan'] ?? null,
+                'education' => $data['Pendidikan'] ?? 'Tidak Diisi',
+                'status' => $data['Status'] ?? 'Aktif',
+            ];
+
+            $validator = Validator::make($payload, [
+                'nik' => ['required', 'digits:16'],
+                'kk' => ['required', 'digits:16'],
+                'name' => ['required', 'string', 'max:255'],
+                'gender' => ['required', 'in:Laki-laki,Perempuan'],
+                'birth_place' => ['required', 'string', 'max:100'],
+                'birth_date' => ['required', 'date'],
+                'address' => ['required', 'string', 'max:255'],
+                'rt' => ['required', 'max:3'],
+                'rw' => ['required', 'max:3'],
+                'education' => ['required', 'string', 'max:100'],
+                'status' => ['required', 'string', 'max:50'],
+            ]);
+
+            if ($validator->fails()) {
+                $errors[] = 'Baris ' . $rowNumber . ': ' . $validator->errors()->first();
+                continue;
+            }
+
             $resident = Resident::updateOrCreate(
-                ['nik' => preg_replace('/\D/', '', $data['NIK'])],
-                [
-                    'kk' => preg_replace('/\D/', '', $data['No KK'] ?? ''),
-                    'family_relationship' => $data['Hubungan Keluarga'] ?? 'Anggota Keluarga',
-                    'name' => $data['Nama'] ?? '',
-                    'gender' => $data['Jenis Kelamin'] ?? 'Laki-laki',
-                    'birth_place' => $data['Tempat Lahir'] ?? '',
-                    'birth_date' => $data['Tanggal Lahir'] ?? now()->format('Y-m-d'),
-                    'address' => $data['Alamat'] ?? '',
-                    'rt' => str_pad((string) ($data['RT'] ?? '000'), 3, '0', STR_PAD_LEFT),
-                    'rw' => str_pad((string) ($data['RW'] ?? '000'), 3, '0', STR_PAD_LEFT),
-                    'religion' => $data['Agama'] ?? 'Islam',
-                    'marital_status' => $data['Status Nikah'] ?? 'Belum Kawin',
-                    'occupation' => $data['Pekerjaan'] ?? null,
-                    'education' => $data['Pendidikan'] ?? 'Tidak Diisi',
-                    'status' => $data['Status'] ?? 'Aktif',
-                ]
+                ['nik' => $payload['nik']],
+                $payload
             );
 
             $this->syncFamilyCard($resident);
@@ -277,6 +304,11 @@ class ResidentController extends Controller
 
         fclose($handle);
 
-        return redirect()->route('residents.index')->with('success', "{$imported} data penduduk berhasil diimport.");
+        AuditLogger::log('imported', "{$imported} data penduduk berhasil diimport.", null, null, ['errors' => $errors]);
+
+        return redirect()
+            ->route('residents.index')
+            ->with('success', "{$imported} data penduduk berhasil diimport." . (count($errors) ? ' ' . count($errors) . ' baris gagal divalidasi.' : ''))
+            ->with('import_errors', $errors);
     }
 }

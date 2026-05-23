@@ -75,6 +75,11 @@
             <a href="{{ route('password.request') }}" class="text-center text-decoration-none">Lupa password?</a>
         </form>
 
+        <div class="alert alert-warning border-0 small mt-4 mb-0">
+            <div class="fw-bold mb-1"><i class="bi bi-shield-lock me-1"></i> Keamanan login aktif</div>
+            Satu akun hanya boleh dipakai pada satu perangkat aktif. Jika login di perangkat lain, sesi lama otomatis berakhir.
+        </div>
+
         <div class="small text-secondary mt-4">
             Akun contoh: superadmin@sidesa.test, admin@sidesa.test, operator@sidesa.test, kepala@sidesa.test, warga@sidesa.test. Password: password
         </div>
