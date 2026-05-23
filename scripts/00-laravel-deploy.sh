@@ -8,6 +8,9 @@ php artisan config:clear || true
 php artisan view:clear || true
 php artisan cache:clear || true
 
+php artisan route:list | grep login || true
+php artisan route:list | head -20 || true
+
 php artisan migrate --force || true
 php artisan storage:link || true
 
