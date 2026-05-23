@@ -87,7 +87,7 @@ class AuthController extends Controller
 
         RateLimiter::clear($throttleKey);
 
-        return redirect()->intended($this->redirectPathFor($user));
+        return redirect()->route('dashboard');
     }
 
     public function destroy(Request $request)
