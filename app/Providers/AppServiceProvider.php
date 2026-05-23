@@ -6,6 +6,7 @@ use App\Models\Resident;
 use App\Observers\ResidentObserver;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,5 +25,8 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
         Resident::observe(ResidentObserver::class);
+        if (app()->environment('production')) {
+            URL::forceScheme('https');
+        }
     }
 }
